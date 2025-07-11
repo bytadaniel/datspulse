@@ -4,7 +4,7 @@ import { Round } from "./round";
 export class Game {
   private currentRound: Round | null;
   private readonly rounds: Round[];
-  private readonly player: Player;
+  public readonly player: Player;
 
   constructor() {
     this.player = new Player();

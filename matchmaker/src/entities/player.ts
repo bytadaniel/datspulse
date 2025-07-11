@@ -1,9 +1,15 @@
+import { ActionRequest, ActionResponse } from "../types";
+
 export class Player {
-  allowActions() {
+  public allowActions() {
     throw new Error("Method not implemented.");
   }
 
-  restrictActions() {
+  public restrictActions() {
     throw new Error("Method not implemented.");
+  }
+
+  public async act(state: ActionRequest): Promise<ActionResponse> {
+    return Promise.resolve(void state);
   }
 }
