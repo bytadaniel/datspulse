@@ -1,6 +1,8 @@
-import { connectPostgres } from "./connections/connect-db";
-import { connectEventBus } from "./connections/connect-event-bus";
-import { game } from "./context";
+import { getArena } from "./api/methods/get-arena";
+import { register } from "./api/methods/register";
+import { connectMongo } from "./connections/connect-mongo";
+import { game, mongodb } from "./context";
+import { MONGODB_DBNAME } from "./env";
 import { ActionRequest, ActionResponse } from "./types";
 
 /**
@@ -60,16 +62,41 @@ const eventHandlers: Record<string, Function> = {
   },
 };
 
-(async function () {
-  await connectPostgres();
-  await connectEventBus();
+// (async function () {
+//   await connectMongo();
+//   await connectEventBus();
 
-  eventBus.consumeMessages(async (message) => {
-    const messageHandler = eventHandlers[message];
-    try {
-      await messageHandler();
-    } catch (error) {
-      console.log(error);
+//   eventBus.consumeMessages(async (message) => {
+//     const messageHandler = eventHandlers[message];
+//     try {
+//       await messageHandler();
+//     } catch (error) {
+//       console.log(error);
+//     }
+//   });
+// })();
+
+function enableAutoRegistration() {
+  setInterval(async () => {
+    const data = await register();
+    if (data) {
+      console.log(data);
     }
-  });
+  }, 60_000);
+}
+
+(async function () {
+  await connectMongo();
+
+  enableAutoRegistration();
+
+  setInterval(async () => {
+    const state = await getArena();
+    if (state) {
+      console.log(state);
+      await mongodb.db(MONGODB_DBNAME).collection("getArena").insertOne(state);
+    }
+  }, 1_000);
+
+  console.log(JSON.stringify(await getArena(), null, 4));
 })();
