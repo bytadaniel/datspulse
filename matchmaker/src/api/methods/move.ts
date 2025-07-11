@@ -2,7 +2,7 @@ import { PlayerMoveCommands } from "../dto/player-move-commands";
 import { PlayerResponseWithErrors } from "../dto/player-response-with-errors";
 import { httpClient } from "../http-client";
 
-export async function move(
+export async function tryMove(
   request: PlayerMoveCommands
 ): Promise<PlayerResponseWithErrors | void> {
   try {

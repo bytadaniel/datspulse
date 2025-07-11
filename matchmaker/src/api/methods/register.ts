@@ -1,13 +1,13 @@
 import { httpClient } from "../http-client";
 
-export type GetRegisterResponse = {
+export type PlayerRegistration = {
   lobbyEndsIn: number;
   name: string;
   nextTurn: number;
   realm: string;
 };
 
-export async function register(): Promise<GetRegisterResponse | void> {
+export async function register(): Promise<PlayerRegistration | void> {
   try {
     const response = await httpClient.post("/api/register");
 
