@@ -15,6 +15,17 @@ enum AntType {
   Scout, // 2
 }
 
+const EXPLORATION_DIRECTIONS = [
+  { q: 2, r: 0 },
+  { q: 2, r: -2 },
+  { q: 0, r: -2 },
+  { q: -2, r: 0 },
+  { q: -2, r: 2 },
+  { q: 0, r: 2 },
+  { q: 1, r: -1 },
+  { q: -1, r: -1 },
+];
+
 let _navigator: PathPlanner;
 function getNavigator(state: PlayerResponse): PathPlanner {
   if (!_navigator) {
@@ -25,6 +36,29 @@ function getNavigator(state: PlayerResponse): PathPlanner {
   _navigator.updateUnits(state.ants, state.enemies);
 
   return _navigator;
+}
+
+function getExplorationTarget(ant: Ant): any {
+  if (ant.lastMove && ant.lastMove.length > 0) {
+    const lastStep = ant.lastMove[ant.lastMove.length - 1];
+    const direction = {
+      q: ant.q - lastStep.q,
+      r: ant.r - lastStep.r,
+    };
+
+    return {
+      q: ant.q + direction.q,
+      r: ant.r + direction.r,
+    };
+  }
+
+  const directionIndex = parseInt(ant.id, 10) % EXPLORATION_DIRECTIONS.length;
+  const direction = EXPLORATION_DIRECTIONS[directionIndex];
+
+  return {
+    q: ant.q + direction.q,
+    r: ant.r + direction.r,
+  };
 }
 
 const api = new Api();
@@ -58,17 +92,28 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
         target: antHome.get(ant.id)!,
       });
     } else {
-      let [cFood] = food.sort(
-        (a, b) => navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
-      );
-      if (!cFood) {
-        cFood = state.food[0];
+      if (food.length > 0) {
+        let [cFood] = food.sort(
+          (a, b) =>
+            navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
+        );
+
+        if (!cFood) {
+          cFood = state.food[0];
+        }
+
+        food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
+
+        antTargets.push({
+          ant,
+          target: cFood,
+        });
+      } else {
+        antTargets.push({
+          ant,
+          target: getExplorationTarget(ant),
+        });
       }
-      food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
-      antTargets.push({
-        ant,
-        target: cFood,
-      });
     }
   }
   const workerMovement = navigator.planMoves(antTargets).map((amc) => {
@@ -129,7 +174,7 @@ function resetAntHomes(): void {
 
   while (true) {
     if (!state?.home.length) {
-      console.time('Pending....');
+      console.time("Pending....");
 
       resetAntHomes();
       await new Promise((resolve) => setTimeout(() => resolve, 2000));
@@ -145,8 +190,6 @@ function resetAntHomes(): void {
       await new Promise((resolve) => setTimeout(resolve, 2000 + timeLeft));
       continue;
     }
-
-    
 
     const t1 = Date.now();
     const movement: PlayerMoveCommands = {
