@@ -28,51 +28,82 @@ const EXPLORATION_DIRECTIONS = [
 ];
 
 let _navigator: PathPlanner;
+
 function getNavigator(state: PlayerResponse): PathPlanner {
   if (!_navigator) {
     _navigator = new PathPlanner(state.home);
     _navigator.updateMap(state.map);
   }
-
   _navigator.updateUnits(state.ants, state.enemies);
-
   return _navigator;
 }
 
-function getExplorationTarget(ant: Ant): any {
-  if (ant.lastMove && ant.lastMove.length > 0) {
-    const lastStep = ant.lastMove[ant.lastMove.length - 1];
-    const direction = {
-      q: ant.q - lastStep.q,
-      r: ant.r - lastStep.r,
-    };
+const api = new Api();
+const antHome = new Map<string, Hex>();
+const workerGuardians = new Map<string, string>(); // worker.id -> warrior.id
+const warriorAssignments = new Map<string, string>(); // warrior.id -> worker.id
 
-    return {
-      q: ant.q + direction.q,
-      r: ant.r + direction.r,
-    };
+// Функция для обновления привязок военных к рабочим
+function updateWorkerGuardianAssignments(
+  workers: Ant[],
+  warriors: Ant[]
+): void {
+  // Создаем индексы для быстрого поиска
+  const workerIndex = new Map(workers.map((w) => [w.id, w]));
+  const warriorIndex = new Map(warriors.map((w) => [w.id, w]));
+
+  // Очищаем мертвые привязки
+  for (const [workerId, warriorId] of workerGuardians.entries()) {
+    if (!workerIndex.has(workerId) || !warriorIndex.has(warriorId)) {
+      workerGuardians.delete(workerId);
+      warriorAssignments.delete(warriorId);
+    }
   }
 
-  const directionIndex = parseInt(ant.id, 10) % EXPLORATION_DIRECTIONS.length;
-  const direction = EXPLORATION_DIRECTIONS[directionIndex];
+  // Находим свободных военных
+  const freeWarriors = warriors.filter((w) => !warriorAssignments.has(w.id));
 
-  return {
-    q: ant.q + direction.q,
-    r: ant.r + direction.r,
-  };
+  // Находим рабочих без охраны
+  const unguardedWorkers = workers.filter((w) => !workerGuardians.has(w.id));
+
+  // Назначаем свободных военных незащищенным рабочим
+  let warriorIndex2 = 0;
+  for (const worker of unguardedWorkers) {
+    if (warriorIndex2 < freeWarriors.length) {
+      const warrior = freeWarriors[warriorIndex2];
+      workerGuardians.set(worker.id, warrior.id);
+      warriorAssignments.set(warrior.id, worker.id);
+      warriorIndex2++;
+    }
+  }
+
+  console.log(
+    `Guardian assignments: ${workerGuardians.size} workers protected, ${
+      unguardedWorkers.length - warriorIndex2
+    } unprotected`
+  );
 }
 
-const api = new Api();
+// Функция для получения позиции охраны рядом с рабочим
+function getGuardPosition(
+  worker: Ant,
+  warrior: Ant,
+  navigator: PathPlanner
+): Hex {
+  // Если военный уже рядом с рабочим (расстояние 1), остаемся на месте
+  const distance = navigator.getDistance(warrior, worker);
+  if (distance <= 1) {
+    return { q: warrior.q, r: warrior.r };
+  }
 
-const antHome = new Map<string, Hex>();
-const workerGuardians = new Map<string, Ant>()
+  // Иначе движемся к рабочему
+  return { q: worker.q, r: worker.r };
+}
 
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   updateAntHomeIndex(state);
-
   const scoutAutoMove = new AutoMoveClass();
   const antCommands: AntMoveCommand[] = [];
-
   const navigator = getNavigator(state);
 
   const iAnts = state.ants.reduce((acc, item) => {
@@ -81,25 +112,25 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   }, {} as Record<string, Ant>);
 
   const antTargets: UnitTarget[] = [];
-
   const _scouts = state.ants.filter((ant) => ant.type === AntType.Scout);
   const workers = state.ants.filter((ant) => ant.type === AntType.Worker);
   const warriors = state.ants.filter((ant) => ant.type === AntType.Warrior);
-
   const foodWalkers = state.ants.filter((ant) => ant.food.amount);
+
+  // Обновляем привязки военных к рабочим
+  updateWorkerGuardianAssignments(workers, warriors);
 
   console.log(`
 ----Score=${state.score}----
 ----Food=${state.food.length}----
-
 Scouts=${_scouts.length}
 Workers=${workers.length}
 Warriors=${warriors.length}
 FoodWalkers=${foodWalkers.length}
+Protected Workers=${workerGuardians.size}
   `);
 
-  const scouts = [..._scouts, ...warriors];
-
+  // Планируем движение рабочих
   let food = [...state.food];
   for (const ant of workers) {
     if (ant.food.amount) {
@@ -113,31 +144,49 @@ FoodWalkers=${foodWalkers.length}
           (a, b) =>
             navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
         );
-
         if (!cFood) {
           cFood = state.food[0];
         }
-
         food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
-
         antTargets.push({
           ant,
           target: cFood,
         });
-      } else {
-        // antTargets.push({
-        //   ant,
-        //   target: getExplorationTarget(ant),
-        // });
       }
     }
   }
+
+  // Планируем движение военных-охранников
+  const assignedWarriors: Ant[] = [];
+  const unassignedWarriors: Ant[] = [];
+
+  for (const warrior of warriors) {
+    const workerId = warriorAssignments.get(warrior.id);
+    if (workerId) {
+      const worker = iAnts[workerId];
+      if (worker) {
+        assignedWarriors.push(warrior);
+        const guardPosition = getGuardPosition(worker, warrior, navigator);
+        antTargets.push({
+          ant: warrior,
+          target: guardPosition,
+        });
+      }
+    } else {
+      unassignedWarriors.push(warrior);
+    }
+  }
+
+  // Движение рабочих и назначенных военных
   const workerMovement = navigator.planMoves(antTargets).map((amc) => {
     amc.path = amc.path.filter(
       (c) => !(c.q === iAnts[amc.ant].q && c.r === iAnts[amc.ant].r)
     );
     return amc;
   });
+
+  // Неназначенные военные исследуют как скауты
+  const scouts = [..._scouts, ...unassignedWarriors];
   const scoutMovement = scoutAutoMove.runAutoMove(scouts);
 
   antCommands.push(...workerMovement, ...scoutMovement);
@@ -157,11 +206,9 @@ function updateAntHomeIndex(state: PlayerResponse): typeof antHome {
         antHome.delete(id);
       }
     }
-
     if (ant.type !== AntType.Worker) {
       continue;
     }
-
     for (const ant of state.ants) {
       if (!antHome.has(ant.id)) {
         antHome.set(
@@ -173,12 +220,13 @@ function updateAntHomeIndex(state: PlayerResponse): typeof antHome {
       }
     }
   }
-
   return antHome;
 }
 
 function resetAntHomes(): void {
   antHome.clear();
+  workerGuardians.clear();
+  warriorAssignments.clear();
 }
 
 (async function () {
@@ -199,10 +247,10 @@ function resetAntHomes(): void {
   }, 15_000);
 
   const turns = new Set();
+
   while (true) {
     if (!state?.home.length) {
       console.log(Date.now(), "Pending....");
-
       resetAntHomes();
       turns.clear();
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -229,6 +277,7 @@ function resetAntHomes(): void {
       moves: onGameTurn(state),
     };
     const calculationMs = Date.now() - t1;
+
     console.log(
       `Calculation=${calculationMs} Left=${timeLeft - calculationMs} Moves=${
         movement.moves.flatMap((m) => m.path).length
@@ -236,9 +285,9 @@ function resetAntHomes(): void {
     );
 
     const newState = await api.move(movement);
-
     const t2 = Date.now();
     const requestMs = Date.now() - t2;
+
     console.log(
       `Move=${requestMs} Left=${timeLeft - calculationMs - requestMs}`
     );
