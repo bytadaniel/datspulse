@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Гексагональная карта</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            overflow: auto;
+        }
+
+        .info-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .hex-grid {
+            position: relative;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        .hex-cell {
+            position: absolute;
+            width: 69.28px;  /* √3 × 40 */
+            height: 60px;
+            clip-path: polygon(
+                    50% 0%,
+                    100% 25%,
+                    100% 75%,
+                    50% 100%,
+                    0% 75%,
+                    0% 25%
+            );
+            background: #8bc34a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            margin-left: -34.64px;  /* -width/2 */
+            margin-top: -40px;      /* -height/2 */
+            z-index: 1;
+        }
+
+        .hex-cell::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            clip-path: inherit;
+            border: 1px solid #000;
+            opacity: 0.3;
+            z-index: 2;
+            pointer-events: none;
+            transition: inherit;
+        }
+
+        .hex-cell:hover::after {
+            opacity: 0.8;
+            border-width: 1.5px;
+        }
+
+        .hex-info {
+            position: absolute;
+            bottom: 8px;
+            width: 100%;
+            text-align: center;
+            z-index: 3;
+        }
+
+        .hex-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .coord {
+            color: #000 !important;
+            font-size: 10px;
+            font-weight: 800;
+            text-shadow:
+                    0 0 2px white,
+                    0 0 2px white,
+                    0 0 2px white;
+            padding: 1px 3px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        /* Типы клеток */
+        .type-0 { background: #8bc34a; } /* Трава */
+        .type-1 { background: #a1887f; } /* Земля */
+        .type-2 { background: #78909c; } /* Камень */
+        .type-3 { background: #ffb74d; } /* Песок */
+        .type-5 { background: #ba68c8; } /* Особый */
+
+        /* Элементы на карте */
+        .ant {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            z-index: 10;
+        }
+        .ant-0 { background: red; }   /* Рабочий */
+        .ant-1 { background: blue; }  /* Солдат */
+        .ant-2 { background: green; } /* Дрон */
+
+        .food {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            z-index: 5;
+        }
+        .food-1 { background: yellow; }  /* Яблоко */
+        .food-2 { background: orange; }  /* Хлеб */
+
+        .home {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border: 2px dashed #000;
+            z-index: 4;
+        }
+    </style>
+</head>
+<body>
+<div class="info-panel">
+    <h2>Гексагональная карта</h2>
+    <p>Ход: <span th:text="${turnNo}"></span> | Очки: <span th:text="${score}"></span></p>
+</div>
+
+<div class="hex-grid">
+    <div th:each="cell : ${map}" class="hex-cell"
+         th:classappend="'type-' + ${cell.type}"
+         th:style="${cellStyles.get(cell)}">
+
+        <div class="hex-content">
+            <div th:each="ant : ${ants}"
+                 th:if="${ant.q} == ${cell.q} and ${ant.r} == ${cell.r}"
+                 class="ant" th:classappend="'ant-' + ${ant.type}"></div>
+
+            <div th:each="foodItem : ${food}"
+                 th:if="${foodItem.q} == ${cell.q} and ${foodItem.r} == ${cell.r}"
+                 class="food" th:classappend="'food-' + ${foodItem.type}"
+                 th:text="${foodItem.amount}"></div>
+
+            <div th:each="homeCell : ${home}"
+                 th:if="${homeCell.q} == ${cell.q} and ${homeCell.r} == ${cell.r}"
+                 class="home"></div>
+        </div>
+
+        <div class="hex-info">
+            <span class="coord" th:text="${cell.q}+','+${cell.r}"></span>
+        </div>
+    </div>
+</div>
+</body>
+</html>
