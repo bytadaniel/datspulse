@@ -8,7 +8,12 @@ import { mongodb } from "./context";
 import { MONGODB_DBNAME } from "./env";
 
 function enableAutoRegistration() {
-  register();
+  setTimeout(async () => {
+    const data = await register();
+    if (data) {
+      console.log(data);
+    }
+  }, 0);
 
   setInterval(async () => {
     const data = await register();
@@ -53,5 +58,6 @@ export class Api {
     if (response) {
       Logger.logState(request, response);
     }
+    return response;
   }
 }

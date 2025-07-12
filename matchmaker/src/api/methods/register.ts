@@ -18,7 +18,9 @@ export async function register(): Promise<PlayerRegistration | void> {
         response.data
       );
 
-      return response.data;
+      if (response.data.name) {
+        return response.data;
+      }
     }
   } catch (error) {
     console.log("Register request failed", error);
