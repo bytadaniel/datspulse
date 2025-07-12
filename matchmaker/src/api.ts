@@ -38,7 +38,6 @@ export class Api {
 
   public async refresh(): Promise<PlayerResponse | void> {
     const response = await getArena();
-    console.log(response);
     if (response) {
       Logger.logState(undefined, response);
       return response;
