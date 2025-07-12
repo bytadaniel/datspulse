@@ -2,6 +2,8 @@ package org.example.service;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.example.data.ArenaResponse;
 import org.example.data.HexCell;
 import org.example.repository.MongoRepository;
@@ -13,6 +15,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class MapVisualisationService {
     private final ObjectMapper objectMapper;
@@ -26,8 +29,20 @@ public class MapVisualisationService {
     }
 
     public ArenaResponse loadArenaResponse() throws IOException {
-        mongoRepository.printFirstDocument();
-        return objectMapper.readValue(new File("/home/mixalight/IdeaProjects/HakatonHex/arena_response.json"), ArenaResponse.class);
+        Document doc = mongoRepository.findFirstDocument();
+        //return objectMapper.readValue(new File("/home/mixalight/IdeaProjects/HakatonHex/arena_response.json"), ArenaResponse.class);
+        log.info(doc.toJson());
+        return convertToArenaResponse(doc);
+    }
+
+    private ArenaResponse convertToArenaResponse(Document doc) {
+        try {
+            Document state = doc.get("state", Document.class);
+            String json = state.toJson();
+            return objectMapper.readValue(json, ArenaResponse.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to convert MongoDB document to ArenaResponse", e);
+        }
     }
 
     public Map<HexCell, String> calculateCellStyles(ArenaResponse response) {
