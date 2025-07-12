@@ -2,10 +2,12 @@ package org.example.config;
 
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+@Slf4j
 @Configuration
 public class MongoConfig {
     @Value("${mongodb.host}")
@@ -27,6 +29,7 @@ public class MongoConfig {
     public MongoClient mongoClient() {
         String connectionString = String.format("mongodb://%s:%s@%s:%d",
                 username, password, host, port);
+        log.info("Mongo connection succseed");
         return MongoClients.create(connectionString);
     }
 }

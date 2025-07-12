@@ -2,6 +2,7 @@ package org.example.service;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.example.data.ArenaResponse;
@@ -12,33 +13,60 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@Getter
 public class MapVisualisationService {
     private final ObjectMapper objectMapper;
     private final MongoRepository mongoRepository;
+    private final List<Document> cachedDocuments;
+    private int currentIndex = 0;
 
     @Autowired
     public MapVisualisationService(MongoRepository mongoRepository) {
         this.mongoRepository = mongoRepository;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.cachedDocuments = Collections.emptyList();//Collections.unmodifiableList(mongoRepository.findAllByInsertOrder());
+        //initAutoRotation();
+    }
+
+    private void initAutoRotation() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            if (!cachedDocuments.isEmpty()) {
+                currentIndex = (currentIndex + 1) % cachedDocuments.size();
+            } else {
+                log.error("no documents in mongo");
+            }
+        }, 2, 2, TimeUnit.SECONDS);
+    }
+
+    public ArenaResponse getCurrentState() {
+        Document currentDoc = cachedDocuments.get(currentIndex);
+        return convertToArenaResponse(currentDoc.get("state", Document.class));
     }
 
     public ArenaResponse loadArenaResponse() throws IOException {
         Document doc = mongoRepository.findFirstDocument();
-        //return objectMapper.readValue(new File("/home/mixalight/IdeaProjects/HakatonHex/arena_response.json"), ArenaResponse.class);
         log.info(doc.toJson());
-        return convertToArenaResponse(doc);
+        return convertToArenaResponse(doc.get("state", Document.class));
+        //return objectMapper.readValue(new File("/home/mixalight/IdeaProjects/HakatonHex/arena_response.json"), ArenaResponse.class);
     }
 
     private ArenaResponse convertToArenaResponse(Document doc) {
         try {
-            Document state = doc.get("state", Document.class);
-            String json = state.toJson();
+            String json = doc.toJson();
             return objectMapper.readValue(json, ArenaResponse.class);
         } catch (IOException e) {
             throw new RuntimeException("Failed to convert MongoDB document to ArenaResponse", e);

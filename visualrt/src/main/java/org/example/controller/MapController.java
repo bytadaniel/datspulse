@@ -22,6 +22,7 @@ public class MapController {
     @GetMapping("/visual")
     public String visualizeMap(Model model) throws Exception {
         try {
+            //ArenaResponse response = mapVisualisationService.getCurrentState();
             ArenaResponse response = mapVisualisationService.loadArenaResponse();
             Map<HexCell, String> cellStyles = mapVisualisationService.calculateCellStyles(response);
             model.addAllAttributes(Map.of(
@@ -31,12 +32,24 @@ public class MapController {
                     "home", response.home,
                     "turnNo", response.turnNo,
                     "score", response.score,
-                    "cellStyles", cellStyles
+                    "cellStyles", cellStyles,
+                    "currentIndex", mapVisualisationService.getCurrentIndex(),
+                    "totalDocuments", mapVisualisationService.getCachedDocuments().size()
             ));
             return "map";
         } catch (Exception ex) {
             model.addAttribute("error", "Failed to visualize map" + ex.getMessage());
             return "error";
         }
+    }
+
+    @GetMapping("/test")
+    public String test() {
+        return "Current index: " + mapVisualisationService.getCurrentIndex();
+    }
+
+    @GetMapping("/ping")
+    public String ping() {
+        return "pong";
     }
 }

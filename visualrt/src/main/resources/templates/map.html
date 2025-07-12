@@ -25,11 +25,15 @@
             position: relative;
             margin: 0 auto;
             padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
         }
 
         .hex-cell {
             position: absolute;
-            width: 69.28px;  /* √3 × 40 */
+            width: 69.28px;
             height: 60px;
             clip-path: polygon(
                     50% 0%,
@@ -45,9 +49,10 @@
             justify-content: center;
             align-items: center;
             box-sizing: border-box;
-            margin-left: -34.64px;  /* -width/2 */
-            margin-top: -40px;      /* -height/2 */
+            margin-left: -34.64px;
+            margin-top: -40px;
             z-index: 1;
+            transition: all 0.3s ease;
         }
 
         .hex-cell::after {
@@ -115,6 +120,7 @@
             height: 16px;
             border-radius: 50%;
             z-index: 10;
+            transition: transform 0.2s ease;
         }
         .ant-0 { background: red; }   /* Рабочий */
         .ant-1 { background: blue; }  /* Солдат */
@@ -125,6 +131,7 @@
             width: 12px;
             height: 12px;
             z-index: 5;
+            transition: all 0.3s ease;
         }
         .food-1 { background: yellow; }  /* Яблоко */
         .food-2 { background: orange; }  /* Хлеб */

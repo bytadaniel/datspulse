@@ -3,17 +3,22 @@ package org.example.repository;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.Sorts;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 @Slf4j
 @Repository
 public class MongoRepository {
     private final MongoCollection<Document> collection;
+    private List<Document> cachedDocuments = Collections.emptyList();
 
     @Autowired
     public MongoRepository(
@@ -29,12 +34,10 @@ public class MongoRepository {
         return collection.find().first();
     }
 
-    public void printFirstDocument() {
-        Document doc = findFirstDocument();
-        if (doc != null) {
-            log.info("First document from MongoDB:\n{}", doc.toJson());
-        } else {
-            log.info("Collection is empty");
-        }
+    public List<Document> findAllByInsertOrder() {
+        log.info("Docs readed from collection");
+        return collection.find()
+                .sort(Sorts.ascending("_id"))
+                .into(new ArrayList<>());
     }
 }
