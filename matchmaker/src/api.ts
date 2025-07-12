@@ -8,6 +8,8 @@ import { mongodb } from "./context";
 import { MONGODB_DBNAME } from "./env";
 
 function enableAutoRegistration() {
+  register();
+
   setInterval(async () => {
     const data = await register();
     if (data) {

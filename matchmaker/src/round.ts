@@ -10,6 +10,7 @@ import {
   PlayerEnemy,
   PlayerResponse,
 } from "./api/dto/player-response";
+import { PlayerResponseWithErrors } from "./api/dto/player-response-with-errors";
 
 enum AntType {
   Worker, // 0
@@ -102,19 +103,25 @@ const rMs = 100;
 const api = new Api();
 
 (async function () {
-  let state: PlayerResponse | void = undefined;
+  let state: PlayerResponse | PlayerResponseWithErrors =
+    undefined as unknown as any;
+
   while (!state) {
-    state = await api.refresh();
-    // state = JSON.parse(
-    //   readFileSync(
-    //     resolve(__dirname, "../../visualizer/arena_response.json")
-    //   ).toString("utf8")
-    // );
+    const newState = await api.refresh();
+    console.log({ newState });
+
+    if (newState) {
+      state = newState;
+    }
   }
+
+  setInterval(async () => {
+    state = (await api.refresh())!;
+  }, 1000);
 
   while (true) {
     const timeLeft = state.nextTurnIn * 1000 - rMs;
-    console.log(`\nTurn=${state.turnNo}/300 Left=${timeLeft}`);
+    console.log(`\nTurn=${state!.turnNo} Left=${timeLeft}`);
 
     if (timeLeft < 0) {
       await new Promise((resolve) => setTimeout(resolve, 2000 + timeLeft));
@@ -130,12 +137,15 @@ const api = new Api();
       `Calculation=${calculationMs} Left=${timeLeft - calculationMs}`
     );
 
+    const newState = await api.move(movement);
     const t2 = Date.now();
-    await api.move(movement);
-    // await new Promise((resolve) => setTimeout(resolve, 100));
     const requestMs = Date.now() - t2;
     console.log(
       `Move=${requestMs} Left=${timeLeft - calculationMs - requestMs}`
     );
+
+    if (newState) {
+      state = newState;
+    }
   }
 })();
