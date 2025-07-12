@@ -1,11 +1,13 @@
+import { randomInt } from "node:crypto";
 import { PathPlanner, UnitTarget } from "./algos/3-hex-navigator";
 import { Api } from "./api";
 import {
   AntMoveCommand,
   PlayerMoveCommands,
 } from "./api/dto/player-move-commands";
-import { Ant, PlayerResponse } from "./api/dto/player-response";
+import { Ant, Hex, PlayerResponse } from "./api/dto/player-response";
 import { PlayerResponseWithErrors } from "./api/dto/player-response-with-errors";
+import { AutoMoveClass } from "./feature/move";
 
 enum AntType {
   Worker, // 0
@@ -48,26 +50,34 @@ const antMobility: Record<number, number> = {
 //   return limited;
 // }
 
+const antHome = new Map<string, Hex>();
+
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
+  const scoutAutoMove = new AutoMoveClass();
   const antCommands: AntMoveCommand[] = [];
 
   const navigator = getNavigator(state);
-
-  let food = [...state.food];
 
   const iAnts = state.ants.reduce((acc, item) => {
     acc[item.id] = item;
     return acc;
   }, {} as Record<string, Ant>);
 
-  const antTargets: UnitTarget[] = state.ants.map((ant) => {
+  const antTargets: UnitTarget[] = [];
+
+  const _scouts = state.ants.filter((ant) => ant.type === AntType.Scout);
+  const workers = state.ants.filter((ant) => ant.type === AntType.Worker);
+  const warriors = state.ants.filter((ant) => ant.type === AntType.Warrior);
+
+  const scouts = [..._scouts, ...warriors];
+
+  let food = [...state.food];
+  for (const ant of workers) {
     if (ant.food.amount) {
-      return {
+      antTargets.push({
         ant,
-        target: state.home.filter(
-          (c) => !(c.q === state.spot.q && c.r === state.spot.r)
-        )[0],
-      } satisfies UnitTarget;
+        target: antHome.get(ant.id)!,
+      });
     } else {
       let [cFood] = food.sort(
         (a, b) => navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
@@ -76,23 +86,54 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
         cFood = state.food[0];
       }
       food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
-      return {
+      antTargets.push({
         ant,
         target: cFood,
-      } satisfies UnitTarget;
+      });
     }
-  });
-
-  const movement = navigator.planMoves(antTargets).map((amc) => {
+  }
+  const workerMovement = navigator.planMoves(antTargets).map((amc) => {
     amc.path = amc.path.filter(
       (c) => !(c.q === iAnts[amc.ant].q && c.r === iAnts[amc.ant].r)
     );
     return amc;
   });
+  const scoutMovement = scoutAutoMove.runAutoMove(state, scouts);
 
-  antCommands.push(...movement);
+  antCommands.push(...workerMovement, ...scoutMovement);
 
   return antCommands;
+}
+
+function updateAntHomeIndex(state: PlayerResponse): typeof antHome {
+  const index = state.ants.reduce((acc, ant) => {
+    acc[ant.id] = ant;
+    return acc;
+  }, {} as Record<string, Ant>);
+
+  for (const ant of state.ants) {
+    for (const id of antHome.keys()) {
+      if (!index[id]) {
+        antHome.delete(id);
+      }
+    }
+
+    if (ant.type !== AntType.Worker) {
+      continue;
+    }
+
+    for (const ant of state.ants) {
+      if (!antHome.has(ant.id)) {
+        antHome.set(ant.id, state.home[randomInt(state.home.length - 1)]);
+      }
+    }
+  }
+
+  return antHome;
+}
+
+function resetAntHomes(): void {
+  antHome.clear();
 }
 
 (async function () {
@@ -119,9 +160,17 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
     const timeLeft = state.nextTurnIn * 1000;
     console.log(`\nTurn=${state.turnNo} Left=${timeLeft}`);
 
+    updateAntHomeIndex(state);
+    console.log(antHome);
+
     if (timeLeft < 0) {
       await new Promise((resolve) => setTimeout(resolve, 2000 + timeLeft));
       continue;
+    }
+
+    if (!state.home.length) {
+      resetAntHomes();
+      await new Promise((resolve) => setTimeout(() => resolve, 2000));
     }
 
     const t1 = Date.now();
