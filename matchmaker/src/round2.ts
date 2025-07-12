@@ -1,15 +1,10 @@
-import { HexNavigator } from "./algos/dijkstra2-hex-navigator";
+import { PathPlanner, UnitTarget } from "./algos/3-hex-navigator";
 import { Api } from "./api";
 import {
   AntMoveCommand,
   PlayerMoveCommands,
 } from "./api/dto/player-move-commands";
-import {
-  Ant,
-  Hex,
-  PlayerEnemy,
-  PlayerResponse,
-} from "./api/dto/player-response";
+import { Ant, PlayerResponse } from "./api/dto/player-response";
 import { PlayerResponseWithErrors } from "./api/dto/player-response-with-errors";
 
 enum AntType {
@@ -18,16 +13,14 @@ enum AntType {
   Scout, // 2
 }
 
-let _navigator: HexNavigator;
-function getNavigator(state: PlayerResponse): HexNavigator {
+let _navigator: PathPlanner;
+function getNavigator(state: PlayerResponse): PathPlanner {
   if (!_navigator) {
-    _navigator = new HexNavigator(state.home);
+    _navigator = new PathPlanner(state.home);
     _navigator.updateMap(state.map);
   }
 
-  const units: (Ant | PlayerEnemy)[] = [...state.ants, ...state.enemies];
-
-  _navigator.updateUnits(units);
+  _navigator.updateUnits(state.ants, state.enemies);
 
   return _navigator;
 }
@@ -40,20 +33,20 @@ const antMobility: Record<number, number> = {
   [AntType.Scout]: 7,
 };
 
-function peakBy(navigator: HexNavigator, hexes: Hex[], limit: number): Hex[] {
-  const limited: Hex[] = [];
+// function peakBy(navigator: PathPlanner, hexes: Hex[], limit: number): Hex[] {
+//   const limited: Hex[] = [];
 
-  for (const hex of hexes) {
-    const distance = navigator.getDistance(hex);
-    if (distance! <= limit) {
-      limited.push(hex);
-    } else {
-      break;
-    }
-  }
+//   for (const hex of hexes) {
+//     const distance = navigator.getDistance(hex);
+//     if (distance! <= limit) {
+//       limited.push(hex);
+//     } else {
+//       break;
+//     }
+//   }
 
-  return limited;
-}
+//   return limited;
+// }
 
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   const antCommands: AntMoveCommand[] = [];
@@ -62,52 +55,45 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
 
   let food = [...state.food];
 
-  for (const ant of state.ants) {
-    const path: Hex[] = [];
+  const iAnts = state.ants.reduce((acc, item) => {
+    acc[item.id] = item;
+    return acc;
+  }, {} as Record<string, Ant>);
 
-    // все муравьи идут до еды
-    let closestFood: Hex | undefined;
-
-    if (!ant.food.amount) {
-      closestFood = food
-        .sort(
-          (a, b) =>
-            (navigator.getDistance(a) ?? Infinity) -
-            (navigator.getDistance(b) ?? Infinity)
-        )
-        .filter(Boolean)[0];
-
-      food = food.filter(
-        (c) => !(c.q === closestFood?.q && c.r === closestFood?.r)
-      );
-
-      let xPath = navigator.getHomeFrom(closestFood, ant.type).reverse();
-      xPath.filter((c) => !(c.q === ant.q && c.r === ant.r));
-      path.push(...peakBy(navigator, xPath, antMobility[ant.type]));
+  const antTargets: UnitTarget[] = state.ants.map((ant) => {
+    if (ant.food.amount) {
+      return {
+        ant,
+        target: state.home.filter(
+          (c) => !(c.q === state.spot.q && c.r === state.spot.r)
+        )[0],
+      } satisfies UnitTarget;
     } else {
-      let xPath = navigator.getHomeFrom(ant, ant.type);
-      xPath = xPath.filter((c) => !(c.q === ant.q && c.r === ant.r));
-
-      path.push(...peakBy(navigator, xPath, antMobility[ant.type]));
+      let [cFood] = food.sort(
+        (a, b) => navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
+      );
+      if (!cFood) {
+        cFood = state.food[0];
+      }
+      food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
+      return {
+        ant,
+        target: cFood,
+      } satisfies UnitTarget;
     }
+  });
 
-    console.log({
-      ant: { q: ant.q, r: ant.r },
-      closestFood,
-      path,
-    });
+  const movement = navigator.planMoves(antTargets).map((amc) => {
+    amc.path = amc.path.filter(
+      (c) => !(c.q === iAnts[amc.ant].q && c.r === iAnts[amc.ant].r)
+    );
+    return amc;
+  });
 
-    antCommands.push({
-      ant: ant.id,
-      path,
-    });
-  }
+  antCommands.push(...movement);
 
   return antCommands;
 }
-
-// constant magic request time
-const rMs = 100;
 
 (async function () {
   let state: PlayerResponse | PlayerResponseWithErrors =
