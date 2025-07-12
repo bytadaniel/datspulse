@@ -14,42 +14,40 @@ export class AutoMoveClass {
     return neighbours[Math.floor(Math.random() * neighbours.length)];
   }
 
-  private generatePath(state: PlayerResponse, ant: Ant, maxDepth = 10): Hex[] {
-    let depth = 0;
-    depth++;
-    if (depth > maxDepth) {
-      return []; // стоим на месте
-    }
+  private generatePath(ant: Ant, from: Hex): Hex[] {
+    // if (state.home.some((c) => c.q === next.q && c.r === next.r)) {
+    //   return this.generatePath(state, ant, depth + 1);
+    // }
 
-    const next = this.randomDirection(ant.q, ant.r);
-    if (state.home.some((c) => c.q === next.q && c.r === next.r)) {
-      return this.generatePath(state, ant);
-    }
+    // if (state.enemies.some((c) => c.q === next.q && c.r === next.r)) {
+    //   return this.generatePath(state, ant, depth + 1);
+    // }
 
-    if (state.enemies.some((c) => c.q === next.q && c.r === next.r)) {
-      return this.generatePath(state, ant);
-    }
+    // if (state.food.some((c) => c.q === next.q && c.r === next.r)) {
+    //   return this.generatePath(state, ant, depth + 1);
+    // }
 
-    if (state.food.some((c) => c.q === next.q && c.r === next.r)) {
-      return this.generatePath(state, ant);
-    }
+    // if (
+    //   state.ants.some(
+    //     (c) => c.q === next.q && c.r === next.r && from.type === c.type
+    //   )
+    // ) {
+    //   return this.generatePath(state, from, depth + 1);
+    // }
 
-    if (
-      state.ants.some(
-        (c) => c.q === next.q && c.r === next.r && ant.type === c.type
-      )
-    ) {
-      return this.generatePath(state, ant);
-    }
+    const p1 = this.randomDirection(from.q, from.r);
+    const p2 = this.randomDirection(p1.q, p1.r);
+    const p3 = this.randomDirection(p2.q, p2.r);
+    const p4 = this.randomDirection(p3.q, p3.r);
 
-    return [next];
+    return [p1, p2, p3, p4];
   }
 
-  runAutoMove(state: PlayerResponse, ants: Ant[]): AntMoveCommand[] {
+  runAutoMove(ants: Ant[]): AntMoveCommand[] {
     return ants.map((ant) => {
       return {
         ant: ant.id,
-        path: this.generatePath(state, ant),
+        path: this.generatePath(ant, ant),
       };
     });
   }

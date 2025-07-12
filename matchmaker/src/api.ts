@@ -20,7 +20,7 @@ function enableAutoRegistration() {
     if (data) {
       console.log(data);
     }
-  }, 60_000);
+  }, 15_000);
 }
 
 type LogState = {
@@ -39,9 +39,7 @@ class Logger {
 }
 
 export class Api {
-  constructor() {
-    enableAutoRegistration();
-  }
+  constructor() {}
 
   public async refresh(): Promise<PlayerResponse | void> {
     const response = await getArena();
