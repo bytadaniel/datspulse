@@ -8,20 +8,30 @@ import { Ant, PlayerResponse } from "./api/dto/player-response";
 import { PlayerResponseWithErrors } from "./api/dto/player-response-with-errors";
 
 enum AntType {
-  Worker, // 0
-  Warrior, // 1
-  Scout, // 2
+  Worker,
+  Warrior,
+  Scout,
 }
 
+const EXPLORATION_DIRECTIONS = [
+  { q: 2, r: 0 },
+  { q: 2, r: -2 },
+  { q: 0, r: -2 },
+  { q: -2, r: 0 },
+  { q: -2, r: 2 },
+  { q: 0, r: 2 },
+  { q: 1, r: -1 },
+  { q: -1, r: -1 },
+];
+
 let _navigator: PathPlanner;
+
 function getNavigator(state: PlayerResponse): PathPlanner {
   if (!_navigator) {
     _navigator = new PathPlanner(state.home);
     _navigator.updateMap(state.map);
   }
-
   _navigator.updateUnits(state.ants, state.enemies);
-
   return _navigator;
 }
 
@@ -48,11 +58,20 @@ const antMobility: Record<number, number> = {
 //   return limited;
 // }
 
+function getExplorationTarget(ant: Ant): any {
+  const directionIndex = parseInt(ant.id, 10) % EXPLORATION_DIRECTIONS.length;
+  const direction = EXPLORATION_DIRECTIONS[directionIndex];
+  const distance = 8 + (parseInt(ant.id, 10) % 5);
+
+  return {
+    q: ant.q + direction.q * distance,
+    r: ant.r + direction.r * distance,
+  };
+}
+
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   const antCommands: AntMoveCommand[] = [];
-
   const navigator = getNavigator(state);
-
   let food = [...state.food];
 
   const iAnts = state.ants.reduce((acc, item) => {
@@ -69,17 +88,28 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
         )[0],
       } satisfies UnitTarget;
     } else {
-      let [cFood] = food.sort(
-        (a, b) => navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
-      );
-      if (!cFood) {
-        cFood = state.food[0];
+      if (food.length > 0) {
+        let [cFood] = food.sort(
+          (a, b) =>
+            navigator.getDistance(ant, a) - navigator.getDistance(ant, b)
+        );
+
+        if (!cFood) {
+          cFood = state.food[0];
+        }
+
+        food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
+
+        return {
+          ant,
+          target: cFood,
+        } satisfies UnitTarget;
+      } else {
+        return {
+          ant,
+          target: getExplorationTarget(ant),
+        } satisfies UnitTarget;
       }
-      food = food.filter((c) => !(c.q === cFood?.q && c.r === cFood?.r));
-      return {
-        ant,
-        target: cFood,
-      } satisfies UnitTarget;
     }
   });
 
@@ -91,17 +121,14 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   });
 
   antCommands.push(...movement);
-
   return antCommands;
 }
 
 (async function () {
   let state: PlayerResponse | PlayerResponseWithErrors =
     undefined as unknown as any;
-
   while (!state) {
     const newState = await api.refresh();
-
     if (newState) {
       state = newState;
     }
@@ -128,6 +155,7 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
     const movement: PlayerMoveCommands = {
       moves: onGameTurn(state),
     };
+
     const calculationMs = Date.now() - t1;
     console.log(
       `Calculation=${calculationMs} Left=${timeLeft - calculationMs} Moves=${
@@ -136,7 +164,6 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
     );
 
     const newState = await api.move(movement);
-
     const t2 = Date.now();
     const requestMs = Date.now() - t2;
     console.log(
