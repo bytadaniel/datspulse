@@ -29,27 +29,6 @@ function getNavigator(state: PlayerResponse): PathPlanner {
 
 const api = new Api();
 
-const antMobility: Record<number, number> = {
-  [AntType.Worker]: 5,
-  [AntType.Warrior]: 4,
-  [AntType.Scout]: 7,
-};
-
-// function peakBy(navigator: PathPlanner, hexes: Hex[], limit: number): Hex[] {
-//   const limited: Hex[] = [];
-
-//   for (const hex of hexes) {
-//     const distance = navigator.getDistance(hex);
-//     if (distance! <= limit) {
-//       limited.push(hex);
-//     } else {
-//       break;
-//     }
-//   }
-
-//   return limited;
-// }
-
 const antHome = new Map<string, Hex>();
 
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
@@ -140,14 +119,6 @@ function resetAntHomes(): void {
   let state: PlayerResponse | PlayerResponseWithErrors =
     undefined as unknown as any;
 
-  while (!state) {
-    const newState = await api.refresh();
-
-    if (newState) {
-      state = newState;
-    }
-  }
-
   setInterval(async () => {
     const newState = await api.refresh();
     if (newState) {
@@ -157,6 +128,13 @@ function resetAntHomes(): void {
   }, 1000);
 
   while (true) {
+    if (!state?.home.length) {
+      console.time('Pending....');
+
+      resetAntHomes();
+      await new Promise((resolve) => setTimeout(() => resolve, 2000));
+    }
+
     const timeLeft = state.nextTurnIn * 1000;
     console.log(`\nTurn=${state.turnNo} Left=${timeLeft}`);
 
@@ -168,10 +146,7 @@ function resetAntHomes(): void {
       continue;
     }
 
-    if (!state.home.length) {
-      resetAntHomes();
-      await new Promise((resolve) => setTimeout(() => resolve, 2000));
-    }
+    
 
     const t1 = Date.now();
     const movement: PlayerMoveCommands = {

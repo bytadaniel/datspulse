@@ -20,7 +20,7 @@ function enableAutoRegistration() {
     if (data) {
       console.log(data);
     }
-  }, 60_000);
+  }, 15_000);
 }
 
 type LogState = {
