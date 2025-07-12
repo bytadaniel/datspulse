@@ -39,9 +39,7 @@ class Logger {
 }
 
 export class Api {
-  constructor() {
-    enableAutoRegistration();
-  }
+  constructor() {}
 
   public async refresh(): Promise<PlayerResponse | void> {
     const response = await getArena();

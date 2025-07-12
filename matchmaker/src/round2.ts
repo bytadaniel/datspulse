@@ -7,6 +7,7 @@ import {
 } from "./api/dto/player-move-commands";
 import { Ant, Hex, PlayerResponse } from "./api/dto/player-response";
 import { PlayerResponseWithErrors } from "./api/dto/player-response-with-errors";
+import { register } from "./api/methods/register";
 import { AutoMoveClass } from "./feature/move";
 
 enum AntType {
@@ -32,6 +33,8 @@ const api = new Api();
 const antHome = new Map<string, Hex>();
 
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
+  updateAntHomeIndex(state);
+
   const scoutAutoMove = new AutoMoveClass();
   const antCommands: AntMoveCommand[] = [];
 
@@ -47,6 +50,15 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   const _scouts = state.ants.filter((ant) => ant.type === AntType.Scout);
   const workers = state.ants.filter((ant) => ant.type === AntType.Worker);
   const warriors = state.ants.filter((ant) => ant.type === AntType.Warrior);
+
+  const foodWalkers = state.ants.filter((ant) => ant.food.amount);
+
+  console.log(`
+Scouts=${_scouts.length}
+Workers=${workers.length}
+Warriors=${warriors.length}
+FoodWalkers=${foodWalkers.length}
+  `);
 
   const scouts = [..._scouts, ...warriors];
 
@@ -69,6 +81,8 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
         ant,
         target: cFood,
       });
+
+      console.log(`FoodLeft=${food.length}`);
     }
   }
   const workerMovement = navigator.planMoves(antTargets).map((amc) => {
@@ -127,26 +141,35 @@ function resetAntHomes(): void {
     }
   }, 1000);
 
+  setInterval(async () => {
+    const registered = await register();
+    console.log({ registered });
+  }, 15_000);
+
+  const turns = new Set();
   while (true) {
     if (!state?.home.length) {
-      console.time('Pending....');
+      console.log(Date.now(), "Pending....");
 
       resetAntHomes();
-      await new Promise((resolve) => setTimeout(() => resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      continue;
     }
 
     const timeLeft = state.nextTurnIn * 1000;
     console.log(`\nTurn=${state.turnNo} Left=${timeLeft}`);
-
-    updateAntHomeIndex(state);
-    console.log(antHome);
 
     if (timeLeft < 0) {
       await new Promise((resolve) => setTimeout(resolve, 2000 + timeLeft));
       continue;
     }
 
-    
+    if (turns.has(state.turnNo)) {
+      await new Promise((resolve) => setTimeout(resolve, timeLeft));
+      continue;
+    } else {
+      turns.add(state.turnNo);
+    }
 
     const t1 = Date.now();
     const movement: PlayerMoveCommands = {
