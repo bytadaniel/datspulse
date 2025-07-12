@@ -65,6 +65,7 @@ function getExplorationTarget(ant: Ant): any {
 const api = new Api();
 
 const antHome = new Map<string, Hex>();
+const workerGuardians = new Map<string, Ant>()
 
 function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   updateAntHomeIndex(state);
@@ -88,6 +89,9 @@ function onGameTurn(state: PlayerResponse): AntMoveCommand[] {
   const foodWalkers = state.ants.filter((ant) => ant.food.amount);
 
   console.log(`
+----Score=${state.score}----
+----Food=${state.food.length}----
+
 Scouts=${_scouts.length}
 Workers=${workers.length}
 Warriors=${warriors.length}
@@ -121,10 +125,10 @@ FoodWalkers=${foodWalkers.length}
           target: cFood,
         });
       } else {
-        antTargets.push({
-          ant,
-          target: getExplorationTarget(ant),
-        });
+        // antTargets.push({
+        //   ant,
+        //   target: getExplorationTarget(ant),
+        // });
       }
     }
   }
@@ -134,7 +138,7 @@ FoodWalkers=${foodWalkers.length}
     );
     return amc;
   });
-  const scoutMovement = scoutAutoMove.runAutoMove(state, scouts);
+  const scoutMovement = scoutAutoMove.runAutoMove(scouts);
 
   antCommands.push(...workerMovement, ...scoutMovement);
 
@@ -160,7 +164,12 @@ function updateAntHomeIndex(state: PlayerResponse): typeof antHome {
 
     for (const ant of state.ants) {
       if (!antHome.has(ant.id)) {
-        antHome.set(ant.id, state.home[randomInt(state.home.length - 1)]);
+        antHome.set(
+          ant.id,
+          state.home.filter(
+            (c) => !(c.q == state.spot.q && c.r === state.spot.r)
+          )[randomInt(state.home.length - 1)]
+        );
       }
     }
   }
@@ -195,6 +204,7 @@ function resetAntHomes(): void {
       console.log(Date.now(), "Pending....");
 
       resetAntHomes();
+      turns.clear();
       await new Promise((resolve) => setTimeout(resolve, 500));
       continue;
     }
